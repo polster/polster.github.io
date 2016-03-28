@@ -4,6 +4,19 @@ title:  "Java - In App version with Maven"
 date:   2016-03-26 23:26:17 +0100
 ---
 
+## Intro
+
+In this post I will show you an easy alternative how to use Maven's resource filter feature
+and combine it with some portions of Java code in order to make the build version
+available to the app at runtime.
+
+Thinking further when it comes to continuous integration the Maven build version
+may be set by the CI Server via the [Maven version plugin](http://www.mojohaus.org/versions-maven-plugin/) where
+a unique build number may be part of the same. Or such build number could be set over
+an additional Java argument as part of the Maven build command where we would need to
+introduce a separate property placeholder within our version property file - this to
+be explained more in detail in a follow-up post.
+
 ## Basic Setup
 
 * The following code snippet demonstrates how to easily read properties from file over the java.util.ResourceBundle:
