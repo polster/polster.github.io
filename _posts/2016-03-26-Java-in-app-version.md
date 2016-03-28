@@ -46,7 +46,7 @@ be explained more in detail in a follow-up post.
 
 * Placing a simple properties file located on the class path (e.g. <project>/src/main/resources-filtered/ch/mycompany/myapp/version.properties) containing some key/values where the values can be filtered via maven (placeholders) during the build process will make the same available to the app at runtime:
 
-{% highlight text %}
+{% highlight properties %}
   name=${pom.name}
   version=${pom.version}
   url=${pom.url}
@@ -91,7 +91,7 @@ be explained more in detail in a follow-up post.
 {% endhighlight %}
 
 * After successful maven build completion the properties file may look as follows (sample):
-{% highlight text %}
+{% highlight properties %}
   name=impex-freigabeclient-package
   version=1.2.0-456-RC1
   url=http://mycompany.ch/myapp-package
