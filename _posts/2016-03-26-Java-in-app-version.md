@@ -21,7 +21,7 @@ be explained more in detail in a follow-up post.
 
 * The following code snippet demonstrates how to easily read properties from file over the java.util.ResourceBundle:
 
-{% highlight text %}
+{% highlight java %}
   /**
   * Create a new instance.
   *
@@ -55,7 +55,7 @@ be explained more in detail in a follow-up post.
 
 * More in detail, passing the resource bundle locator to the code snippet as seen above during initialization will read the properties:
 
-{% highlight text %}
+{% highlight java %}
   /**
   * The application version.
   */
@@ -80,7 +80,7 @@ be explained more in detail in a follow-up post.
 
 * Assuming maven as the build tool, we can add the following properties to the project POM in order to let maven generate a build timestamp that can be consumed as property:
 
-{% highlight text %}
+{% highlight xml %}
   <properties>
 
     <!-- timestamp used for build info -->
