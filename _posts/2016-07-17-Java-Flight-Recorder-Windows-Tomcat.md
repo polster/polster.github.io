@@ -13,7 +13,8 @@ The following steps describe how to profile a running Tomcat/Java process where 
 * Open Tomcat's Windows Service configuration helper: *$TOMCAT_HOME\\bin\\Tomcat8w.exe*
 * Switch to the Java tab
 
-![Tomcat8w](images/Tomcat8w-Java-Config.png)
+![Tomcat8w]({{ site.url }}/images/Tomcat8w-Java-Config.png)
+
 * Append the following lines in order to enable flight recorder:
 {% highlight bash %}
 -XX:+UnlockCommercialFeatures
