@@ -8,7 +8,7 @@ date:   2016-03-28 01:20:10 +0100
 
 * Append the following arguments to your $JAVA_OPTS. Keep in mind without these arguments the flight recorder feature will remain disabled:
 {% highlight bash %}
-  XX:+UnlockCommercialFeatures -XX:+FlightRecorder
+  -XX:+UnlockCommercialFeatures -XX:+FlightRecorder
 {% endhighlight %}
 
 ## Recording by Hand
