@@ -31,3 +31,17 @@ The following steps describe how to profile a running Tomcat/Java process where 
 * Click OK and restart Tomcat
 
 ### Profiling
+
+* Start Mission Control: *$JAVA_HOME\\bin\\jmc.exe*
+* Click File > Connect
+* Create a new connection
+
+![JMC New Connection]({{ site.url }}/images/jmc-new-connection.png)
+
+* Adjust the connection settings so they match the Tomcat JMX parameters
+
+![JMC New Connection Settings]({{ site.url }}/images/jmc-new-connection-settings.png)
+
+* Start flight recording (again, adjust the settings as needed and proceed)
+
+![JMC New Connection Start FC]({{ site.url }}/images/jmc-new-connection-start-flight-recording.png)
