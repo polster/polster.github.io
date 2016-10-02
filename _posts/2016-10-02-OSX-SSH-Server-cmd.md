@@ -15,6 +15,7 @@ Looking for a more automated approach the following sections will describe or le
 ### Compatible Systems
 
 All adjustments as described below have been tested against the following OS version:
+
 * OS X 10.11
 
 ## Useful commands
