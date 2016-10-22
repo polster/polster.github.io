@@ -26,6 +26,7 @@ Combining the SSH-key authentication with a password based authentication allows
 On SSH configuration level this can be achieved by adding the following line to the SSH-Server config (/etc/ssh/sshd_config):
 
 {% highlight bash linenos %}
+# Require all users to use public key and local password
 AuthenticationMethods publickey,password
 {% endhighlight %}
 
@@ -37,5 +38,19 @@ Authenticated with partial success.
 localadmin@my-server's password:
 my-server:~ localadmin$
 {% endhighlight %}
+
+In some cases it may be required to allow different auth method depending on the user. For instance if we have a technical user being forced by the used milage to login over SSH-key only:
+
+{% highlight bash linenos %}
+# Require all users to use SSH key and SSH user password
+AuthenticationMethods publickey,password
+
+# Tech user can only login over public key
+Match User inventory
+    AuthenticationMethods publickey
+Match all
+{% endhighlight %}
+
+Hint: If you are using [Ansible](https://www.ansible.com/) and want to automate SSH configuration, then my [SSH Hardening Role](https://github.com/polster/ansible-ssh-hardening) might be of interest.
 
 ### Server side password with OTP
