@@ -15,9 +15,8 @@ date:   2016-12-25 23:26:17 +0100
 ### Prerequisites
 
 The setup as described below has been tested on behalf of the following environment:
-
 * Docker Host based on CentOS/RHL 7
-* Docker Engine >= 1.12.5 installed
+* Docker Engine 1.12.5 (or higher) installed
 
 ### SSL Certificates
 
