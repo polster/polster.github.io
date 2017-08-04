@@ -65,6 +65,10 @@ wget -O basic-install.sh https://install.pi-hole.net
 bash basic-install.sh
 {% endhighlight %}
 * Follow the script's interactive installation instructions (correct settings should be suggested by the installation assistant)
+* Set a password in order to login over the admin web console:
+{% highlight bash linenos %}
+pihole -a -p somepasswordhere
+{% endhighlight %}
 * As a first test, try to open the Pi-Hole URL http://<pi-hole IP or host name>/admin in a new browser window:
 
 ![Pi-Hole container]({{ site.url }}/images/turris-lxc-pi-hole-web-interface.png)
