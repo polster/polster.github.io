@@ -19,7 +19,7 @@ aws configure
 # CI user
 aws configure --profile ci-user
 {% endhighlight %}
-* Got to the AWS console > Amazon S3 > my-helm-chart-repo and add the following Bucket policy (adjust as needed):
+* Go to the AWS console > Amazon S3 > my-helm-chart-repo and add the following Bucket policy (adjust as needed):
 {% highlight bash linenos %}
 {
     "Version": "2012-10-17",
