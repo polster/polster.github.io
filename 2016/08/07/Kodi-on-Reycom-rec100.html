@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Kodi - Basic HTPC setup on Reycom rec100</title>
+  <meta name="description" content="Kodi on Reycom rec100 - Basic setup">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://polster.github.io/2016/08/07/Kodi-on-Reycom-rec100.html">
+  <link rel="alternate" type="application/rss+xml" title="Polster's jerry picks" href="http://polster.github.io/feed.xml">
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+
+    <a class="site-title" href="/">Polster's jerry picks</a>
+
+    <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+
+      <div class="trigger">
+        
+          
+          <a class="page-link" href="/about/">About</a>
+          
+        
+          
+        
+          
+        
+          
+        
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Kodi - Basic HTPC setup on Reycom rec100</h1>
+    <p class="post-meta"><time datetime="2016-08-07T00:20:10+00:00" itemprop="datePublished">Aug 7, 2016</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <h2 id="kodi-on-reycom-rec100---basic-setup">Kodi on Reycom rec100 - Basic setup</h2>
+
+<h3 id="disclaimer">Disclaimer</h3>
+
+<ul>
+  <li>These are just my own notes I made during a playing around setup while exploring the Reycom device - re-use the same at your own discretion and may be as a reference (no guarantees at all)</li>
+  <li>Especially the Linux related sections represent a very minimalistic setup just to make it work</li>
+</ul>
+
+<h3 id="requirements">Requirements</h3>
+
+<ul>
+  <li>Reycom rec100</li>
+  <li>USB pen drive (4GB or more)</li>
+  <li>Kodibuntu ISO</li>
+  <li>Mac or Linux machine (needed to create a bootable USB stick)</li>
+  <li>USB keyboard + USB mouse</li>
+  <li>Display or TV with an empty HDMI port</li>
+</ul>
+
+<h3 id="preparation">Preparation</h3>
+
+<h4 id="bootable-usb-stick">Bootable USB Stick</h4>
+
+<h5 id="mac">Mac</h5>
+
+<ul>
+  <li>Download the latest version of <a href="https://kodi.tv/download/">Kodibuntu</a></li>
+  <li>Open a new terminal</li>
+  <li>Convert the downloaded image file to iso format</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+</pre></td><td class="code"><pre>hdiutil convert <span class="nt">-format</span> UDRW <span class="nt">-o</span> ~/path/to/target.img ~/path/to/Kodibuntu.iso
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li>Attach the USB pen drive</li>
+  <li>Find out the right disk and unmount</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+</pre></td><td class="code"><pre>diskutil list
+diskutil unmountDisk /dev/diskN
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li>Use disk doubler to write the iso to disk</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+</pre></td><td class="code"><pre><span class="nb">sudo dd </span><span class="k">if</span><span class="o">=</span>/path/to/Kodibuntu.img <span class="nv">of</span><span class="o">=</span>/dev/diskN <span class="nv">bs</span><span class="o">=</span>1m
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li>Remove the pen drive</li>
+</ul>
+
+<h4 id="reycom-box">Reycom Box</h4>
+
+<ul>
+  <li>Attach the USB keyboard and bootable USB pen drive to the Reycom Box</li>
+  <li>Connect the Reycom box to the display or TV using the provided HDMI cable</li>
+</ul>
+
+<h3 id="installation">Installation</h3>
+
+<ul>
+  <li>Boot the Reycom box and hit the F11 key multiple times as soon as the Reycom brand logo appears</li>
+</ul>
+
+<p><img src="http://polster.github.io/images/reycom-boot-logo.png" alt="Reycom Boot Logo" /></p>
+
+<ul>
+  <li>Select the USB stick and hit Enter</li>
+</ul>
+
+<p><img src="http://polster.github.io/images/reycom-boot-menu.png" alt="Reycom Boot Menu" /></p>
+
+<ul>
+  <li>Follow the Ubuntu installer’s instructions, perform a regular installation selecting the smaller of the two builtin drives as the target volume (should be the SSD disk)</li>
+  <li>The installation should be completed as soon as the installer prompts for a reboot (you may remove the USB pen drive and reboot)</li>
+  <li>If the installation was successful, the Kodi UI should appear after reboot</li>
+</ul>
+
+<h3 id="configuration">Configuration</h3>
+
+<h4 id="kodi">Kodi</h4>
+
+<h5 id="screen-calibration">Screen Calibration</h5>
+
+<ul>
+  <li>Navigate to Settings &gt; System &gt; Video Output</li>
+</ul>
+
+<p><img src="http://polster.github.io/images/kodi-settings-video-output.png" alt="Kodi Settings video output" /></p>
+
+<ul>
+  <li>Select Screen Calibration</li>
+  <li>Use the mouse and point to the upper left corner bringing up a small marking where the same can be selected and dragged until the two lines become in line with the display border (see the next screenshot)</li>
+  <li>Hit Enter</li>
+</ul>
+
+<p><img src="http://polster.github.io/images/kodi-settings-calibration-upper-left-corner.png" alt="Kodi calibration upper left corner" /></p>
+
+<ul>
+  <li>Repeat the same step for the lower right corner and hit Enter</li>
+  <li>Point the mouse cursor to the lower area of the display, more or less in the middle. Then as soon as a small line indicating the sub-title position appears drag the same (see next screenshot) and hit Enter</li>
+</ul>
+
+<p><img src="http://polster.github.io/images/kodi-settings-calibration-sub-title-area.png" alt="Kodi calibration subtitle area" /></p>
+
+<ul>
+  <li>To complete the calibration, adjust the rectangle the same way as before until the pixel ratio equals the one of the screenshot below (hit Enter to complete)</li>
+</ul>
+
+<p><img src="http://polster.github.io/images/kodi-settings-calibration-rectangle.png" alt="Kodi calibration rectangle" /></p>
+
+<ul>
+  <li>Once the calibration is done, leave the settings area</li>
+</ul>
+
+<h4 id="ubuntu">Ubuntu</h4>
+
+<h5 id="terminal-login"><a name="terminalLogin"></a>Terminal Login</h5>
+
+<ul>
+  <li>Press ctrl + alt + F1 in order to switch to the terminal</li>
+  <li>Login and start hacking the system</li>
+</ul>
+
+<h5 id="terminal-login-1"><a name="terminalLogout"></a>Terminal Login</h5>
+
+<ul>
+  <li>Logout (ctrl + d)</li>
+  <li>Press ctrl + alt + F7 in order to switch back to the Kodi UI</li>
+</ul>
+
+<h5 id="sudo">Sudo</h5>
+
+<ul>
+  <li><a href="#terminalLogin">Log in to the terminal</a></li>
+  <li>Add the current user to the sudoers group</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+</pre></td><td class="code"><pre>usermod <span class="nt">-aG</span> <span class="nb">sudo</span> &lt;username&gt;
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li><a href="#terminalLogout">Log out</a></li>
+</ul>
+
+<h5 id="static-ip">Static IP</h5>
+
+<p>Configuring a static IP can be helpful as soon as you plan to administrate the underlining Linux distro over SSH or less technical if Kodi should be controlled via the official Remote App.</p>
+
+<ul>
+  <li><a href="#terminalLogin">Log in to the terminal</a></li>
+  <li>Open the interface configuration file</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+</pre></td><td class="code"><pre><span class="nb">sudo </span>nano /etc/network/interfaces
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li>Append the following configuration (adjust as needed)</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+</pre></td><td class="code"><pre>auto eth0
+iface eth0 inet static
+        address 192.168.1.200
+        netmask 255.255.255.0
+        gateway 192.168.1.1
+        dns-nameservers 192.168.1.1
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li>Restart the network service</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+</pre></td><td class="code"><pre><span class="nb">sudo </span>service networking restart
+</pre></td></tr></tbody></table></code></pre></figure>
+
+<ul>
+  <li>Ensure the static IP configuration has been loaded by doing an ifconfig (had to reboot the system)</li>
+  <li><a href="#terminalLogout">Log out</a></li>
+</ul>
+
+<h3 id="troubleshooting">Troubleshooting</h3>
+
+<h4 id="reycom-bios">Reycom Bios</h4>
+
+<h4 id="general">General</h4>
+
+<ul>
+  <li>The default Bios password as given by the vendor is: cE6bS8</li>
+  <li>Even if you try to change the Bios password it will be reset as soon as the Reycom box is being unplugged</li>
+</ul>
+
+<h4 id="openelec">OpenELEC</h4>
+
+<ul>
+  <li>In case you want to install the OpenELEC operation system as an alternative, be advised that the same might not boot after being installed due to a missing Graphics driver</li>
+</ul>
+
+  </div>
+
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Polster's jerry picks</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li>Polster's jerry picks</li>
+          <li><a href="mailto:"></a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col footer-col-2">
+        <ul class="social-media-list">
+          
+          <li>
+            <a href="https://github.com/polster"><span class="icon icon--github"><svg viewBox="0 0 16 16"><path fill="#828282" d="M7.999,0.431c-4.285,0-7.76,3.474-7.76,7.761 c0,3.428,2.223,6.337,5.307,7.363c0.388,0.071,0.53-0.168,0.53-0.374c0-0.184-0.007-0.672-0.01-1.32 c-2.159,0.469-2.614-1.04-2.614-1.04c-0.353-0.896-0.862-1.135-0.862-1.135c-0.705-0.481,0.053-0.472,0.053-0.472 c0.779,0.055,1.189,0.8,1.189,0.8c0.692,1.186,1.816,0.843,2.258,0.645c0.071-0.502,0.271-0.843,0.493-1.037 C4.86,11.425,3.049,10.76,3.049,7.786c0-0.847,0.302-1.54,0.799-2.082C3.768,5.507,3.501,4.718,3.924,3.65 c0,0,0.652-0.209,2.134,0.796C6.677,4.273,7.34,4.187,8,4.184c0.659,0.003,1.323,0.089,1.943,0.261 c1.482-1.004,2.132-0.796,2.132-0.796c0.423,1.068,0.157,1.857,0.077,2.054c0.497,0.542,0.798,1.235,0.798,2.082 c0,2.981-1.814,3.637-3.543,3.829c0.279,0.24,0.527,0.713,0.527,1.437c0,1.037-0.01,1.874-0.01,2.129 c0,0.208,0.14,0.449,0.534,0.373c3.081-1.028,5.302-3.935,5.302-7.362C15.76,3.906,12.285,0.431,7.999,0.431z"/></svg>
+</span><span class="username">polster</span></a>
+
+          </li>
+          
+
+          
+        </ul>
+      </div>
+
+      <div class="footer-col footer-col-3">
+        <p>Welcome! Here you may find polster's personal notes around effective engineering, digital transformation, devops, architecture, coding, security, tech...
+</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+
+
+  </body>
+
+</html>

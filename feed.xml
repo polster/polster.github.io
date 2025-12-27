@@ -1,0 +1,1389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Polster&apos;s jerry picks</title>
+    <description>Welcome! Here you may find polster&apos;s personal notes around effective engineering, digital transformation, devops, architecture, coding, security, tech...
+</description>
+    <link>http://polster.github.io/</link>
+    <atom:link href="http://polster.github.io/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Sat, 27 Dec 2025 02:21:03 +0000</pubDate>
+    <lastBuildDate>Sat, 27 Dec 2025 02:21:03 +0000</lastBuildDate>
+    <generator>Jekyll v3.10.0</generator>
+    
+      <item>
+        <title>Helm Chart Repo on Amazon S3</title>
+        <description>&lt;h2 id=&quot;prerequisites&quot;&gt;Prerequisites&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Technical IAM user with programmatic access only, used to push new Helm Charts to the repo, e.g. ci-user-accesskey&lt;/li&gt;
+  &lt;li&gt;New S3 bucket, in this how to using my-helm-repo&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://github.com/aws/aws-cli&quot;&gt;awscli&lt;/a&gt;, &lt;a href=&quot;https://github.com/helm/helm&quot;&gt;helm&lt;/a&gt;, &lt;a href=&quot;https://github.com/hypnoglow/helm-s3&quot;&gt;helm-s3 plugin&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;get-started&quot;&gt;Get started&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Create local awscli profiles, allowing to test the S3 bucket policy later on:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# default AWS user (enter AWS Access Key ID, Key, region,...)&lt;/span&gt;
+aws configure
+&lt;span class=&quot;c&quot;&gt;# CI user&lt;/span&gt;
+aws configure &lt;span class=&quot;nt&quot;&gt;--profile&lt;/span&gt; ci-user
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Go to the AWS console &amp;gt; Amazon S3 &amp;gt; my-helm-chart-repo and add the following Bucket policy (adjust as needed):&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;Version&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;2012-10-17&quot;&lt;/span&gt;,
+    &lt;span class=&quot;s2&quot;&gt;&quot;Statement&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;s2&quot;&gt;&quot;Sid&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;AllowListObjects&quot;&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Effect&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;Allow&quot;&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Principal&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;s2&quot;&gt;&quot;AWS&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;arn:aws:iam::101010101:root&quot;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Action&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:GetBucketLocation&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:GetObject&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:ListBucket&quot;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Resource&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;
+                &lt;span class=&quot;s2&quot;&gt;&quot;arn:aws:s3:::my-helm-repo&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;arn:aws:s3:::my-helm-repo/*&quot;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;,
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;s2&quot;&gt;&quot;Sid&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;AllowObjectsFetchAndCreate&quot;&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Effect&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;Allow&quot;&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Principal&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;s2&quot;&gt;&quot;AWS&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;arn:aws:iam::101010101:user/ci-user-accesskey&quot;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Action&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:GetBucketLocation&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:GetObject&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:ListBucket&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:ListBucketMultipartUploads&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:ListMultipartUploadParts&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:AbortMultipartUpload&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;s3:PutObject&quot;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;,
+            &lt;span class=&quot;s2&quot;&gt;&quot;Resource&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;
+                &lt;span class=&quot;s2&quot;&gt;&quot;arn:aws:s3:::my-helm-repo&quot;&lt;/span&gt;,
+                &lt;span class=&quot;s2&quot;&gt;&quot;arn:aws:s3:::my-helm-repo/*&quot;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;The idea here is to allow any user on behalf of the main account to read the repository’s charts, where only the continuous integration user is allowed to push new Helm Charts to the repo&lt;/li&gt;
+  &lt;li&gt;Initilaize and add the Helm repo:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;helm S3 init s3://my-helm-repo/charts
+helm repo add my-helm-repo s3://my-helm-repo/charts
+&lt;span class=&quot;c&quot;&gt;# List repos&lt;/span&gt;
+helm repo list
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Perform a first test in order to verify if access to the S3 bucket works as expected:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Switch awscli profile and list bucket content as the CI-user&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;AWS_PROFILE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;ci-user
+aws s3 &lt;span class=&quot;nb&quot;&gt;ls &lt;/span&gt;s3://my-helm-repo/charts/
+&lt;span class=&quot;c&quot;&gt;# unset&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;unset &lt;/span&gt;AWS_PROFILE
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Create and upload a test helm chart:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;helm create test-chart
+&lt;span class=&quot;nb&quot;&gt;rm&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-rf&lt;/span&gt; test-chart/templates/&lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;.&lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt;test-chart/templates/configmap.yaml &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;EOL&lt;/span&gt;&lt;span class=&quot;sh&quot;&gt;
+apiVersion: v1  
+kind: ConfigMap  
+metadata:  
+  name: test-chart-configmap
+data:  
+  myvalue: &quot;Hello World&quot;
+&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;EOL
+&lt;/span&gt;helm package ./test-chart
+helm s3 push ./test-chart-0.1.0.tgz my-helm-repo
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;ci-pipeline-integration&quot;&gt;CI pipeline integration&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Depending on the CI-product being used (e.g. Jenkins, Gitlab), add the following variables to your pipeline configuration in order to have them being passed into the build runner or build job as environment variables:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-linenos&quot; data-lang=&quot;linenos&quot;&gt;AWS_ACCESS_KEY_ID = &quot;ci-user key id&quot;
+AWS_SECRET_ACCESS_KEY = &quot;ci-user key&quot;
+AWS_DEFAULT_REGION = &quot;s3 bucket region&quot;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;As soon as a new Helm Chart is being created and pushed to the repo, this way awscli driven by the helm-s3 plugin will use these env vars, respectively these credentials from within the build runner&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        <pubDate>Mon, 30 Jul 2018 04:55:10 +0000</pubDate>
+        <link>http://polster.github.io/2018/07/30/Helm-Repo-on-aws-s3.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2018/07/30/Helm-Repo-on-aws-s3.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Basic setup: Turris Omnia</title>
+        <description>&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;/h2&gt;
+
+&lt;p&gt;This blog entry documents some unsorted instructions how to setup the popular &lt;a href=&quot;https://omnia.turris.cz/en/&quot;&gt;Turris Omnia&lt;/a&gt; appliance.&lt;/p&gt;
+
+&lt;h2 id=&quot;prerequsites&quot;&gt;Prerequsites&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Turris Omnia with OS version 3.7 or higher&lt;/li&gt;
+  &lt;li&gt;At least completion of the initial setup (&lt;a href=&quot;https://www.turris.cz/doc/en/howto/foris&quot;&gt;first run&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;preparation&quot;&gt;Preparation&lt;/h2&gt;
+
+&lt;h2 id=&quot;zsh&quot;&gt;zsh&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Install some pre-requisites:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;opkg update &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; opkg &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;zsh
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Change the desired user’s shell: vi /etc/passwd&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;root:x:0:0:root:/root:/bin/ash to root:x:0:0:root:/root:/bin/zsh
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Reboot and SSH into the box again&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;sudo-user&quot;&gt;Sudo user&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;SSH into the box (as root)&lt;/li&gt;
+  &lt;li&gt;Install some pre-requisites:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;opkg update &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; opkg &lt;span class=&quot;nb&quot;&gt;install sudo &lt;/span&gt;shadow-useradd
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Add a new user, lets say zak (and configure as needed):&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;useradd zak
+passwd supersecret
+&lt;span class=&quot;nb&quot;&gt;mkdir&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /home/zak
+&lt;span class=&quot;nb&quot;&gt;chown &lt;/span&gt;zak:zak /home/zak
+&lt;span class=&quot;nb&quot;&gt;chmod &lt;/span&gt;750 /home/zak
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Modify the sudoers config as needed: visudo&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Allow all users in the wheel group to execute any cmd as root&lt;/span&gt;
+%wheel &lt;span class=&quot;nv&quot;&gt;ALL&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=(&lt;/span&gt;ALL&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; ALL
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Add the newly created user to the wheel group:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# may be the wheel group does not exist&lt;/span&gt;
+groupadd wheel
+usermod &lt;span class=&quot;nt&quot;&gt;-G&lt;/span&gt; wheel zak
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Logout and SSH into box with the new user&lt;/li&gt;
+  &lt;li&gt;Test if sudo works as expected:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nb&quot;&gt;sudo&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;secure-web-interface&quot;&gt;Secure Web Interface&lt;/h2&gt;
+&lt;ul&gt;
+  &lt;li&gt;The following web server config assumes self-signed certificates, which is not recommended for production!&lt;/li&gt;
+  &lt;li&gt;Install some pre-requisites:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;opkg update &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; opkg &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;lighttpd-mod-redirect
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Modify the following ssl config: sudo vi /etc/lighttpd/conf.d/ssl-enable.conf&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nv&quot;&gt;$SERVER&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;socket&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;:443&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        ssl.engine &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;enable&quot;&lt;/span&gt;
+        ssl.pemfile &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;/etc/lighttpd-self-signed.pem&quot;&lt;/span&gt;
+        ssl.use-sslv2 &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;disable&quot;&lt;/span&gt;
+        ssl.use-sslv3 &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;disable&quot;&lt;/span&gt;
+        ssl.cipher-list &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;EDH+CAMELLIA:EDH+aRSA:EECDH+aRSA+AESGCM:EECDH+aRSA+SHA256:EECDH:+CAMELLIA128:+AES128:+SSLv3:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!DSS:!RC4:!SEED:!IDEA:!ECDSA:kEDH:CAMELLIA128-SHA:AES128-SHA&quot;&lt;/span&gt;
+        ssl.honor-cipher-order &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;enable&quot;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;nv&quot;&gt;$SERVER&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;socket&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;[::]:443&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        ssl.engine  &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;enable&quot;&lt;/span&gt;
+        ssl.pemfile &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;/etc/lighttpd-self-signed.pem&quot;&lt;/span&gt;
+        ssl.use-sslv2 &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;disable&quot;&lt;/span&gt;
+        ssl.use-sslv3 &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;disable&quot;&lt;/span&gt;
+        ssl.cipher-list &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;EDH+CAMELLIA:EDH+aRSA:EECDH+aRSA+AESGCM:EECDH+aRSA+SHA256:EECDH:+CAMELLIA128:+AES128:+SSLv3:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!DSS:!RC4:!SEED:!IDEA:!ECDSA:kEDH:CAMELLIA128-SHA:AES128-SHA&quot;&lt;/span&gt;
+        ssl.honor-cipher-order &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;enable&quot;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;nv&quot;&gt;$HTTP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;scheme&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;https&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c&quot;&gt;# Add  &apos;HTTP Strict Transport Security&apos; header (HSTS) to sites&lt;/span&gt;
+        setenv.add-response-header  +&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;Strict-Transport-Security&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;max-age=31536000; includeSubDomains&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Add the following fragment to the web server config (just after the IPv6 listener line): vi /etc/lighttpd/lighttpd.conf&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Redirect http to https&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;$HTTP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;scheme&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;http&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+ &lt;span class=&quot;nv&quot;&gt;$HTTP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;host&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;~ &lt;span class=&quot;s2&quot;&gt;&quot;.*&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+ url.redirect &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;.*&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;https://%0&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$0&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+ &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+ setenv.add-environment &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+ &lt;span class=&quot;s2&quot;&gt;&quot;HTTPS&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;on&quot;&lt;/span&gt;
+ &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Restart the web server and check if lighttpd is listening on port 80 and 443:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;/etc/init.d/lighttpd restart
+netstat &lt;span class=&quot;nt&quot;&gt;-tulpen&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;On a separate client, test the configured ciphers and protocols:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;nmap &lt;span class=&quot;nt&quot;&gt;--script&lt;/span&gt; ssl-enum-ciphers &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; 443 192.168.1.1
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Open a web browser and enter the router IP or host name without https in order to see if being redirected&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        <pubDate>Sat, 11 Nov 2017 21:55:10 +0000</pubDate>
+        <link>http://polster.github.io/2017/11/11/Basic-setup-Turris.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2017/11/11/Basic-setup-Turris.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Pi-Hole on Turris Omnia</title>
+        <description>&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;/h2&gt;
+
+&lt;p&gt;This blog entry summarizes the needed steps (may be not all) how to setup the popular Add-ware blocker &lt;a href=&quot;https://pi-hole.net/&quot;&gt;Pi-Hole&lt;/a&gt; on the &lt;a href=&quot;https://omnia.turris.cz/en/&quot;&gt;Turris Omnia&lt;/a&gt; appliance.&lt;/p&gt;
+
+&lt;h2 id=&quot;prerequsites&quot;&gt;Prerequsites&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Turris Omnia with OS version 3.7 or higher&lt;/li&gt;
+  &lt;li&gt;At least completion of the initial setup (&lt;a href=&quot;https://www.turris.cz/doc/en/howto/foris&quot;&gt;first run&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;container-setup&quot;&gt;Container Setup&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;SSH into the box&lt;/li&gt;
+  &lt;li&gt;Create a new lxc container:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;lxc-create &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; download &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; pi-hole
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;When prompted, enter the following parameters: ubuntu xenial armv7&lt;/li&gt;
+  &lt;li&gt;Configure a static IP address to be set as new DNS server in a further step:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;vi /srv/lxc/pi-hole/config
+
+&lt;span class=&quot;c&quot;&gt;# Append the following lines:&lt;/span&gt;
+lxc.network.ipv4.ipv4 &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &amp;lt;static ip address&amp;gt;/&amp;lt;mask bits&amp;gt;
+lxc.network.ipv4.gateway &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &amp;lt;router address&amp;gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Configure the container to be started automatically (after reboot):&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;vi /etc/config/lxc-auto
+
+&lt;span class=&quot;c&quot;&gt;# Add or append the following lines&lt;/span&gt;
+config container
+        option name pi-hole
+        option &lt;span class=&quot;nb&quot;&gt;timeout &lt;/span&gt;60
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Start the newly created lxc container:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;lxc-start &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; pi-hole
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Verify if the container is up and running:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;lxc-info &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; pi-hole
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/turris-lxc-pi-hole-container.png&quot; alt=&quot;Pi-Hole container&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;pi-hole-setup&quot;&gt;Pi-Hole Setup&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Attach to the container:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;lxc-attach &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; pi-hole
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Install needed package:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;apt &lt;span class=&quot;nb&quot;&gt;install&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-y&lt;/span&gt; wget
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Download the Pi-Hole installation script and run it:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;wget &lt;span class=&quot;nt&quot;&gt;-O&lt;/span&gt; basic-install.sh https://install.pi-hole.net
+bash basic-install.sh
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Follow the script’s interactive installation instructions (correct settings should be suggested by the installation assistant)&lt;/li&gt;
+  &lt;li&gt;Set a password in order to login over the admin web console:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;pihole &lt;span class=&quot;nt&quot;&gt;-a&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; somepasswordhere
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;As a first test, try to open the Pi-Hole URL http://&lt;pi-hole IP=&quot;&quot; or=&quot;&quot; host=&quot;&quot; name=&quot;&quot;&gt;/admin in a new browser window:&lt;/pi-hole&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/turris-lxc-pi-hole-web-interface.png&quot; alt=&quot;Pi-Hole container&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;turris-setup&quot;&gt;Turris Setup&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Login to LuCI&lt;/li&gt;
+  &lt;li&gt;Go to Network interfaces &amp;gt; LAN &amp;gt; DHCP Server &amp;gt; DHCP Option and change IP to the pi-hole container’s static IP&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;verification&quot;&gt;Verification&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Ensure your IP address lease has been renewed on the client from where you are connected to the Turris Omnia box (in order to use Pi-Hole as the DNS server)&lt;/li&gt;
+  &lt;li&gt;Open the Pi-Hole Add-ware testing page in a new browser window: https://pi-hole.net/pages-to-test-ad-blocking-performance/&lt;/li&gt;
+  &lt;li&gt;Check if the statistics/counters have changed:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/turris-lxc-pi-hole-web-interface2.png&quot; alt=&quot;Pi-Hole container&quot; /&gt;&lt;/p&gt;
+</description>
+        <pubDate>Fri, 04 Aug 2017 21:55:10 +0000</pubDate>
+        <link>http://polster.github.io/2017/08/04/Pi-Hole-on-Turris.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2017/08/04/Pi-Hole-on-Turris.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Python - Virtualenv for Robot Test Development on macOS</title>
+        <description>&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;This blog entry summarizes an easy approach how to setup a virtual env for Robot Test development&lt;/li&gt;
+  &lt;li&gt;How to do it with homebrew on macOS instructions can be found everywhere in the wild, so motivation was to summarize the needed steps without&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;setup-without-homebrew&quot;&gt;Setup without homebrew&lt;/h2&gt;
+
+&lt;h3 id=&quot;direnv&quot;&gt;direnv&lt;/h3&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Download the latest binary&lt;/span&gt;
+curl &lt;span class=&quot;nt&quot;&gt;-O&lt;/span&gt; https://github.com/direnv/direnv/releases/download/v2.4.0/direnv.darwin-amd64
+
+&lt;span class=&quot;c&quot;&gt;# Create user bin dir and move the binary&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;mkdir&lt;/span&gt; ~/bin/direnv
+&lt;span class=&quot;nb&quot;&gt;mv &lt;/span&gt;direnv.darwin-amd64 ~/bin/direnv
+
+&lt;span class=&quot;c&quot;&gt;# Make the direnv binary executable&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;chmod&lt;/span&gt; +x ~/bin/direnv
+
+&lt;span class=&quot;c&quot;&gt;# Ensure the user bin dir is on the path (~/.profile or ~/.zshrc)&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;PATH&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;~/bin:&lt;span class=&quot;nv&quot;&gt;$PATH&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# Add the following line if on bash (~/.bashrc)&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;eval&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;$(&lt;/span&gt;direnv hook bash&lt;span class=&quot;si&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# Add the following line if on zsh (~/.zshrc)&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;eval&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;$(&lt;/span&gt;direnv hook zsh&lt;span class=&quot;si&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# Star a new terminal session or source your bash/zsh env&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h3 id=&quot;virtualenv&quot;&gt;Virtualenv&lt;/h3&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Ensure virtualenv is installed&lt;/span&gt;
+pip &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;virtualenv
+
+&lt;span class=&quot;c&quot;&gt;# cd into your project folder and create a new direnv config file&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;# Python
+layout python
+export PYTHONPATH=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$VIRTUAL_ENV&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;/lib/python2.7/site-packages/:&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$PYTHONPATH&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; .envrc
+
+&lt;span class=&quot;c&quot;&gt;# As requested by the direnv error message that should appear, run the following&lt;/span&gt;
+direnv allow
+
+&lt;span class=&quot;c&quot;&gt;# If everything worked, executing the following command should print the path to the python executable within this project&lt;/span&gt;
+which python
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h3 id=&quot;robot-framework&quot;&gt;Robot Framework&lt;/h3&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Create another dot file containing the Robot Framework packages to be present&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;pip install robotframework
+
+pip install robotframework-sshlibrary
+pip install robotframework-requests
+pip install robotframework-selenium2library
+pip install robotframework-extendedselenium2library&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; .robotenv
+
+&lt;span class=&quot;c&quot;&gt;# Make the file executable&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;chmod &lt;/span&gt;u+x .robotenv
+
+&lt;span class=&quot;c&quot;&gt;# Install the defined packages&lt;/span&gt;
+./.robotenv
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;setup-with-homebrew&quot;&gt;Setup with homebrew&lt;/h2&gt;
+
+&lt;p&gt;See the &lt;a href=&quot;https://github.com/polster/dev-env-scripts/blob/master/robot-dev-env-setup.sh&quot;&gt;Robot Env Script&lt;/a&gt;&lt;/p&gt;
+</description>
+        <pubDate>Tue, 17 Jan 2017 21:55:10 +0000</pubDate>
+        <link>http://polster.github.io/2017/01/17/macOS-Python-virtualenv-Robot-Dev.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2017/01/17/macOS-Python-virtualenv-Robot-Dev.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Docker Host - Secured remote management</title>
+        <description>&lt;h2 id=&quot;motivation&quot;&gt;Motivation&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Enabling the Docker daemon socket on a docker host to accept remote connections may be required in certain situations (e.g. automation, centralized management, integration over the Docker API)&lt;/li&gt;
+  &lt;li&gt;Especially in production and when dealing with sensitive data, the TCP connection shall be protected by enabling TLS&lt;/li&gt;
+  &lt;li&gt;This post brings together the minimally required steps to 1. configure the Docker daemon socket for TLS and 2. generate the certificates on a sample basis&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;secured-remote-management&quot;&gt;Secured remote management&lt;/h2&gt;
+
+&lt;h3 id=&quot;prerequisites&quot;&gt;Prerequisites&lt;/h3&gt;
+
+&lt;p&gt;The setup as described below has been tested on behalf of the following environment:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Docker Host based on CentOS/RHL 7&lt;/li&gt;
+  &lt;li&gt;Docker Engine 1.12.5 (or higher) installed&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;ssl-certificates&quot;&gt;SSL Certificates&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Create the needed SSL server and client certificates (best practice here is to go with certificates being signed by an official certificate authority)&lt;/li&gt;
+  &lt;li&gt;Just for reference and for development usage, here a sample:
+&lt;script src=&quot;https://gist.github.com/polster/5ea79927cf9a496c7da84ee70d8abdd4.js&quot;&gt;&lt;/script&gt;&lt;/li&gt;
+  &lt;li&gt;Keep in mind that best practice is to generate the private key(s) on the machine where they are required, only having to share the request for signing with your CA of choice&lt;/li&gt;
+  &lt;li&gt;Ensure the needed private key and certificates are being placed securely on the Docker host:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nb&quot;&gt;mkdir&lt;/span&gt; /root/.docker
+&lt;span class=&quot;nb&quot;&gt;cp &lt;/span&gt;server-cert.pem server-key.pem ca.pem /root/.docker
+&lt;span class=&quot;nb&quot;&gt;chmod&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; 0400 /root/.docker/server-key.pem
+&lt;span class=&quot;nb&quot;&gt;chmod&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; 0444 /root/.docker/&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;server-cert.pem,ca.pem&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h3 id=&quot;docker-socket-config&quot;&gt;Docker socket config&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Create the following dir:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nb&quot;&gt;mkdir&lt;/span&gt; /etc/systemd/system/docker.service.d
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Create the following service config file:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;vi /etc/systemd/system/docker.service.d/docker.conf
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Copy paste the following content (adjust as needed):&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Service]
+&lt;span class=&quot;nv&quot;&gt;ExecStart&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;ExecStart&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/usr/bin/dockerd &lt;span class=&quot;nt&quot;&gt;--tls&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--tlscert&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/root/.docker/server-cert.pem &lt;span class=&quot;nt&quot;&gt;--tlskey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/root/.docker/server-key.pem &lt;span class=&quot;nt&quot;&gt;--tlscacert&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/root/.docker/ca.pem &lt;span class=&quot;nt&quot;&gt;-H&lt;/span&gt; tcp://docker-node01.example.com:2376
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Reload configuration:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;systemctl daemon-reload
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Restart the Docker daemon:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;systemctl restart docker
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h3 id=&quot;connection-test&quot;&gt;Connection test&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Run the following command in order to test the connection over TLS:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;docker &lt;span class=&quot;nt&quot;&gt;--tlsverify&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--tlscacert&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;ca.pem &lt;span class=&quot;nt&quot;&gt;--tlscert&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;cert.pem &lt;span class=&quot;nt&quot;&gt;--tlskey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;key.pem &lt;span class=&quot;nt&quot;&gt;-H&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;docker-node01.example.com:2376 version
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;appendix&quot;&gt;Appendix&lt;/h2&gt;
+
+&lt;h3 id=&quot;references&quot;&gt;References&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;https://docs.docker.com/engine/admin/#/configuring-docker-1&quot;&gt;Docker - Configure Docker Daemon socket on CentOS 7&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://docs.docker.com/engine/security/https/&quot;&gt;Docker - Protect the Docker daemon socket&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        <pubDate>Sun, 25 Dec 2016 22:26:17 +0000</pubDate>
+        <link>http://polster.github.io/2016/12/25/Docker-Host-Secure-remote-management.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2016/12/25/Docker-Host-Secure-remote-management.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>SSH - Multi-Factor Authentication</title>
+        <description>&lt;h2 id=&quot;intro&quot;&gt;Intro&lt;/h2&gt;
+
+&lt;h3 id=&quot;motivation&quot;&gt;Motivation&lt;/h3&gt;
+
+&lt;p&gt;SSH offers a variety of authentication methods varying from simple password auth to MFA (multi-factor authentication).&lt;/p&gt;
+
+&lt;p&gt;Going with SSH-key based authentication (what you have) where the private key is being protected by a passphrase (what you know) in order to store the same encrypted may be reconsidered as much more secure compared to simple password based authentication.
+But one bigger downside here comes from the fact that there is no passphrase expiration or password policy being forced by the default tooling allowing the user to set a weak passphrase or leave the generated private key unprotected.&lt;/p&gt;
+
+&lt;p&gt;In addition to the usage of passphrase protected SSH-keys the device or system where the key is being kept has to be hardened accordingly where MFA may become much more useful if all parts of it can be enforced server side.&lt;/p&gt;
+
+&lt;p&gt;Simply put, SSH private keys representing what you have in combination with the protecting passphrase (what you know) should not be considered as MFA mainly because not all parts of it can be enforced server side.&lt;/p&gt;
+
+&lt;h2 id=&quot;alternatives&quot;&gt;Alternatives&lt;/h2&gt;
+
+&lt;h3 id=&quot;ssh-key-pair-with-server-side-password&quot;&gt;SSH-Key pair with server side password&lt;/h3&gt;
+
+&lt;p&gt;Combining the SSH-key authentication with a password based authentication allows us to enforce any password policy also including password expiration/renewal server side - This way the what you know part becomes more controllable or physical.&lt;/p&gt;
+
+&lt;p&gt;On SSH configuration level this can be achieved by adding the following line to the SSH-Server config (/etc/ssh/sshd_config):&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Require all users to use public key and local password&lt;/span&gt;
+AuthenticationMethods publickey,password
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Once the change has been applied and the user being allowed to login over SSH has a key accepted by the server the SSH login should look very similar to the following example:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;➜  ~ ssh localadmin@my-server &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; .ssh/id_rsa
+Authenticated with partial success.
+localadmin@my-server&lt;span class=&quot;s1&quot;&gt;&apos;s password:
+my-server:~ localadmin$&lt;/span&gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;In some cases it may be required to allow different auth method depending on the user. For instance if we have a technical user being forced by the used milage to login over SSH-key only:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Require all users to use SSH key and SSH user password&lt;/span&gt;
+AuthenticationMethods publickey,password
+
+&lt;span class=&quot;c&quot;&gt;# Tech user can only login over public key&lt;/span&gt;
+Match User inventory
+    AuthenticationMethods publickey
+Match all
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Hint: If you are using &lt;a href=&quot;https://www.ansible.com/&quot;&gt;Ansible&lt;/a&gt; and want to automate SSH configuration, then my &lt;a href=&quot;https://github.com/polster/ansible-ssh-hardening&quot;&gt;SSH Hardening Role&lt;/a&gt; might be of interest.&lt;/p&gt;
+
+&lt;h3 id=&quot;server-side-password-with-otp&quot;&gt;Server side password with OTP&lt;/h3&gt;
+</description>
+        <pubDate>Sun, 02 Oct 2016 23:45:10 +0000</pubDate>
+        <link>http://polster.github.io/2016/10/02/SSH-Multi-Factor-Auth.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2016/10/02/SSH-Multi-Factor-Auth.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>SSH - Command line configuration on OS X</title>
+        <description>&lt;h2 id=&quot;intro&quot;&gt;Intro&lt;/h2&gt;
+
+&lt;h3 id=&quot;motivation&quot;&gt;Motivation&lt;/h3&gt;
+
+&lt;p&gt;The classic way to enable and configure the remote login feature on a Mac is to open System Preferences &amp;gt; Sharing and then enable the feature.&lt;/p&gt;
+
+&lt;p&gt;Looking for a more automated approach the following sections will describe or lets say suggest how to achieve the same over Terminal commands.&lt;/p&gt;
+
+&lt;h3 id=&quot;compatible-systems&quot;&gt;Compatible Systems&lt;/h3&gt;
+
+&lt;p&gt;All adjustments as described below have been tested against the following OS version:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;OS X 10.11&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;useful-commands&quot;&gt;Useful commands&lt;/h2&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;Command&lt;/th&gt;
+      &lt;th&gt;Description&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;systemsetup -setremotelogin on&lt;/td&gt;
+      &lt;td&gt;Enable remote login (aka SSH-Server)&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;dscl . -read /Groups/com.apple.access_ssh&lt;/td&gt;
+      &lt;td&gt;Print the members of the group being allowed to login over SSH (these members correspond to the allowed users under Sharing, but may not be displayed in the GUI)&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;dscl . -read /Groups/com.apple.access_ssh-disabled&lt;/td&gt;
+      &lt;td&gt;In case no error is being printed but the full group information then this means any user is being allowed to login via SSH (corresponds to the All Users option under Sharing)&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;h2 id=&quot;ssh-server-configuration-via-cmd-on-os-x&quot;&gt;SSH Server configuration via CMD on OS X&lt;/h2&gt;
+
+&lt;h3 id=&quot;enabling-remote-login&quot;&gt;Enabling Remote Login&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Permissions are being controlled over directory services where simply enabling remote login without any other configuration will allow all users to login remotely&lt;/li&gt;
+  &lt;li&gt;Highly recommended you should limit the allowed users by first enable the access_ssh record:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;dscl &lt;span class=&quot;nb&quot;&gt;.&lt;/span&gt; change /Groups/com.apple.access_ssh-disabled RecordName com.apple.access_ssh-disabled com.apple.access_ssh
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;And then add one or more users to the record:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;dscl &lt;span class=&quot;nb&quot;&gt;.&lt;/span&gt; append /Groups/com.apple.access_ssh GroupMembership USERNAME
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Finally, enable the remote login service:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;systemsetup &lt;span class=&quot;nt&quot;&gt;-setremotelogin&lt;/span&gt; on
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h3 id=&quot;changing-the-allowed-user-list&quot;&gt;Changing the allowed user list&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;In case you need to add or remove users being allowed to login over SSH, a restart of the service seems not to be required (will reload automatically)&lt;/li&gt;
+  &lt;li&gt;Add one more user:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;dscl &lt;span class=&quot;nb&quot;&gt;.&lt;/span&gt; append /Groups/com.apple.access_ssh GroupMembership USERNAME2
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Remove user:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;dscl &lt;span class=&quot;nb&quot;&gt;.&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-delete&lt;/span&gt; /Groups/com.apple.access_ssh GroupMembership USERNAME
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+</description>
+        <pubDate>Sun, 02 Oct 2016 21:45:10 +0000</pubDate>
+        <link>http://polster.github.io/2016/10/02/OSX-SSH-Server-cmd.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2016/10/02/OSX-SSH-Server-cmd.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Kodi - Basic HTPC setup on Reycom rec100</title>
+        <description>&lt;h2 id=&quot;kodi-on-reycom-rec100---basic-setup&quot;&gt;Kodi on Reycom rec100 - Basic setup&lt;/h2&gt;
+
+&lt;h3 id=&quot;disclaimer&quot;&gt;Disclaimer&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;These are just my own notes I made during a playing around setup while exploring the Reycom device - re-use the same at your own discretion and may be as a reference (no guarantees at all)&lt;/li&gt;
+  &lt;li&gt;Especially the Linux related sections represent a very minimalistic setup just to make it work&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;requirements&quot;&gt;Requirements&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Reycom rec100&lt;/li&gt;
+  &lt;li&gt;USB pen drive (4GB or more)&lt;/li&gt;
+  &lt;li&gt;Kodibuntu ISO&lt;/li&gt;
+  &lt;li&gt;Mac or Linux machine (needed to create a bootable USB stick)&lt;/li&gt;
+  &lt;li&gt;USB keyboard + USB mouse&lt;/li&gt;
+  &lt;li&gt;Display or TV with an empty HDMI port&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;preparation&quot;&gt;Preparation&lt;/h3&gt;
+
+&lt;h4 id=&quot;bootable-usb-stick&quot;&gt;Bootable USB Stick&lt;/h4&gt;
+
+&lt;h5 id=&quot;mac&quot;&gt;Mac&lt;/h5&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Download the latest version of &lt;a href=&quot;https://kodi.tv/download/&quot;&gt;Kodibuntu&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Open a new terminal&lt;/li&gt;
+  &lt;li&gt;Convert the downloaded image file to iso format&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;hdiutil convert &lt;span class=&quot;nt&quot;&gt;-format&lt;/span&gt; UDRW &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; ~/path/to/target.img ~/path/to/Kodibuntu.iso
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Attach the USB pen drive&lt;/li&gt;
+  &lt;li&gt;Find out the right disk and unmount&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;diskutil list
+diskutil unmountDisk /dev/diskN
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Use disk doubler to write the iso to disk&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nb&quot;&gt;sudo dd &lt;/span&gt;&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/path/to/Kodibuntu.img &lt;span class=&quot;nv&quot;&gt;of&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/dev/diskN &lt;span class=&quot;nv&quot;&gt;bs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;1m
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Remove the pen drive&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&quot;reycom-box&quot;&gt;Reycom Box&lt;/h4&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Attach the USB keyboard and bootable USB pen drive to the Reycom Box&lt;/li&gt;
+  &lt;li&gt;Connect the Reycom box to the display or TV using the provided HDMI cable&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;installation&quot;&gt;Installation&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Boot the Reycom box and hit the F11 key multiple times as soon as the Reycom brand logo appears&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/reycom-boot-logo.png&quot; alt=&quot;Reycom Boot Logo&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Select the USB stick and hit Enter&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/reycom-boot-menu.png&quot; alt=&quot;Reycom Boot Menu&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Follow the Ubuntu installer’s instructions, perform a regular installation selecting the smaller of the two builtin drives as the target volume (should be the SSD disk)&lt;/li&gt;
+  &lt;li&gt;The installation should be completed as soon as the installer prompts for a reboot (you may remove the USB pen drive and reboot)&lt;/li&gt;
+  &lt;li&gt;If the installation was successful, the Kodi UI should appear after reboot&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;configuration&quot;&gt;Configuration&lt;/h3&gt;
+
+&lt;h4 id=&quot;kodi&quot;&gt;Kodi&lt;/h4&gt;
+
+&lt;h5 id=&quot;screen-calibration&quot;&gt;Screen Calibration&lt;/h5&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Navigate to Settings &amp;gt; System &amp;gt; Video Output&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/kodi-settings-video-output.png&quot; alt=&quot;Kodi Settings video output&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Select Screen Calibration&lt;/li&gt;
+  &lt;li&gt;Use the mouse and point to the upper left corner bringing up a small marking where the same can be selected and dragged until the two lines become in line with the display border (see the next screenshot)&lt;/li&gt;
+  &lt;li&gt;Hit Enter&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/kodi-settings-calibration-upper-left-corner.png&quot; alt=&quot;Kodi calibration upper left corner&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Repeat the same step for the lower right corner and hit Enter&lt;/li&gt;
+  &lt;li&gt;Point the mouse cursor to the lower area of the display, more or less in the middle. Then as soon as a small line indicating the sub-title position appears drag the same (see next screenshot) and hit Enter&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/kodi-settings-calibration-sub-title-area.png&quot; alt=&quot;Kodi calibration subtitle area&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;To complete the calibration, adjust the rectangle the same way as before until the pixel ratio equals the one of the screenshot below (hit Enter to complete)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/kodi-settings-calibration-rectangle.png&quot; alt=&quot;Kodi calibration rectangle&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Once the calibration is done, leave the settings area&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&quot;ubuntu&quot;&gt;Ubuntu&lt;/h4&gt;
+
+&lt;h5 id=&quot;terminal-login&quot;&gt;&lt;a name=&quot;terminalLogin&quot;&gt;&lt;/a&gt;Terminal Login&lt;/h5&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Press ctrl + alt + F1 in order to switch to the terminal&lt;/li&gt;
+  &lt;li&gt;Login and start hacking the system&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h5 id=&quot;terminal-login-1&quot;&gt;&lt;a name=&quot;terminalLogout&quot;&gt;&lt;/a&gt;Terminal Login&lt;/h5&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Logout (ctrl + d)&lt;/li&gt;
+  &lt;li&gt;Press ctrl + alt + F7 in order to switch back to the Kodi UI&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h5 id=&quot;sudo&quot;&gt;Sudo&lt;/h5&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;#terminalLogin&quot;&gt;Log in to the terminal&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Add the current user to the sudoers group&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;usermod &lt;span class=&quot;nt&quot;&gt;-aG&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;sudo&lt;/span&gt; &amp;lt;username&amp;gt;
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;#terminalLogout&quot;&gt;Log out&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h5 id=&quot;static-ip&quot;&gt;Static IP&lt;/h5&gt;
+
+&lt;p&gt;Configuring a static IP can be helpful as soon as you plan to administrate the underlining Linux distro over SSH or less technical if Kodi should be controlled via the official Remote App.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;#terminalLogin&quot;&gt;Log in to the terminal&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Open the interface configuration file&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;nano /etc/network/interfaces
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Append the following configuration (adjust as needed)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;auto eth0
+iface eth0 inet static
+        address 192.168.1.200
+        netmask 255.255.255.0
+        gateway 192.168.1.1
+        dns-nameservers 192.168.1.1
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Restart the network service&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;service networking restart
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Ensure the static IP configuration has been loaded by doing an ifconfig (had to reboot the system)&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;#terminalLogout&quot;&gt;Log out&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;troubleshooting&quot;&gt;Troubleshooting&lt;/h3&gt;
+
+&lt;h4 id=&quot;reycom-bios&quot;&gt;Reycom Bios&lt;/h4&gt;
+
+&lt;h4 id=&quot;general&quot;&gt;General&lt;/h4&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;The default Bios password as given by the vendor is: cE6bS8&lt;/li&gt;
+  &lt;li&gt;Even if you try to change the Bios password it will be reset as soon as the Reycom box is being unplugged&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&quot;openelec&quot;&gt;OpenELEC&lt;/h4&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;In case you want to install the OpenELEC operation system as an alternative, be advised that the same might not boot after being installed due to a missing Graphics driver&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        <pubDate>Sun, 07 Aug 2016 00:20:10 +0000</pubDate>
+        <link>http://polster.github.io/2016/08/07/Kodi-on-Reycom-rec100.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2016/08/07/Kodi-on-Reycom-rec100.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Java - Flight Recorder with Tomcat on Windows</title>
+        <description>&lt;h2 id=&quot;tomcat-as-windows-service&quot;&gt;Tomcat as Windows Service&lt;/h2&gt;
+
+&lt;p&gt;The following steps describe how to profile a running Tomcat/Java process where Tomcat has been setup as a Windows service; using Java Flight Recorder and Mission Control (requires JDK 7 or newer).&lt;/p&gt;
+
+&lt;h3 id=&quot;preparation&quot;&gt;Preparation&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Open Tomcat’s Windows Service configuration helper: &lt;em&gt;$TOMCAT_HOME\bin\Tomcat8w.exe&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;Switch to the Java tab&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/Tomcat8w-Java-Config.png&quot; alt=&quot;Tomcat8w&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Append the following lines in order to enable flight recorder:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span class=&quot;nt&quot;&gt;-XX&lt;/span&gt;:+UnlockCommercialFeatures
+&lt;span class=&quot;nt&quot;&gt;-XX&lt;/span&gt;:+FlightRecorder&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Ensure the following lines are present as well in order to be able to connect over Mission Control. Adjust the same as needed:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span class=&quot;nt&quot;&gt;-Dcom&lt;/span&gt;.sun.management.jmxremote
+&lt;span class=&quot;nt&quot;&gt;-Dcom&lt;/span&gt;.sun.management.jmxremote.host&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;localhost
+&lt;span class=&quot;nt&quot;&gt;-Dcom&lt;/span&gt;.sun.management.jmxremote.port&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;8999
+&lt;span class=&quot;nt&quot;&gt;-Dcom&lt;/span&gt;.sun.management.jmxremote.ssl&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;
+&lt;span class=&quot;nt&quot;&gt;-Dcom&lt;/span&gt;.sun.management.jmxremote.authenticate&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Click OK and restart Tomcat&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;profiling&quot;&gt;Profiling&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Start Mission Control: &lt;em&gt;$JAVA_HOME\bin\jmc.exe&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;Click File &amp;gt; Connect&lt;/li&gt;
+  &lt;li&gt;Create a new connection&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/jmc-new-connection.png&quot; alt=&quot;JMC New Connection&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Adjust the connection settings so they match the Tomcat JMX parameters&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/jmc-new-connection-settings.png&quot; alt=&quot;JMC New Connection Settings&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Start flight recording (again, adjust the settings as needed and proceed)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://polster.github.io/images/jmc-new-connection-start-flight-recording.png&quot; alt=&quot;JMC New Connection Start FC&quot; /&gt;&lt;/p&gt;
+</description>
+        <pubDate>Sun, 17 Jul 2016 00:20:10 +0000</pubDate>
+        <link>http://polster.github.io/2016/07/17/Java-Flight-Recorder-Windows-Tomcat.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2016/07/17/Java-Flight-Recorder-Windows-Tomcat.html</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Python - Virtualenv on CentOS</title>
+        <description>&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Having an older version of CentOS (e.g. 6.x) where the default Python version 2.6 cannot be replaced due to OS specific dependencies may require to install a newer version of Python that shall co-exist (or multiple versions)&lt;/li&gt;
+  &lt;li&gt;For such situation working with &lt;a href=&quot;https://virtualenv.pypa.io/en/stable/&quot;&gt;virtualenv&lt;/a&gt; could be a good solution&lt;/li&gt;
+  &lt;li&gt;The following example summarizes the installation of Python 2.7 needed by Robotframework&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;installing-an-individual-python-version&quot;&gt;Installing an individual Python version&lt;/h2&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;yum &lt;span class=&quot;nt&quot;&gt;-y&lt;/span&gt; update
+yum groupinstall &lt;span class=&quot;nt&quot;&gt;-y&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;development tools&apos;&lt;/span&gt;
+
+yum &lt;span class=&quot;nb&quot;&gt;install&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-y&lt;/span&gt; zlib-devel bzip2-devel openssl-devel xz-libs wget
+
+wget http://www.python.org/ftp/python/2.7.11/Python-2.7.11.tar.xz
+xz &lt;span class=&quot;nt&quot;&gt;-d&lt;/span&gt; Python-2.7.11.tar.xz
+&lt;span class=&quot;nb&quot;&gt;tar&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-xvf&lt;/span&gt; Python-2.7.11.tar
+
+&lt;span class=&quot;c&quot;&gt;# Enter the directory&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;cd &lt;/span&gt;Python-2.7.11
+
+&lt;span class=&quot;c&quot;&gt;# Run the configure&lt;/span&gt;
+./configure &lt;span class=&quot;nt&quot;&gt;--prefix&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/usr/local
+
+&lt;span class=&quot;c&quot;&gt;# compile and install it&lt;/span&gt;
+make
+make altinstall
+
+&lt;span class=&quot;c&quot;&gt;# Checking Python version:&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;user@host ~]# python2.7 &lt;span class=&quot;nt&quot;&gt;-V&lt;/span&gt;
+Python 2.7.11
+
+&lt;span class=&quot;c&quot;&gt;# Install pip package manager&lt;/span&gt;
+curl https://raw.githubusercontent.com/pypa/pip/master/contrib/get-pip.py | python2.7 -
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;installing-and-configuring-the-virtual-env&quot;&gt;Installing and configuring the virtual env&lt;/h2&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;wget &lt;span class=&quot;nt&quot;&gt;--no-check-certificate&lt;/span&gt; https://pypi.python.org/packages/source/s/setuptools/setuptools-1.4.2.tar.gz
+
+&lt;span class=&quot;c&quot;&gt;# Extract the files:&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;tar&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-xvf&lt;/span&gt; setuptools-1.4.2.tar.gz
+&lt;span class=&quot;nb&quot;&gt;cd &lt;/span&gt;setuptools-1.4.2
+
+&lt;span class=&quot;c&quot;&gt;# Install setuptools using the Python 2.7.11:&lt;/span&gt;
+python2.7 setup.py &lt;span class=&quot;nb&quot;&gt;install&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# Install virtual env&lt;/span&gt;
+pip2.7 &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;virtualenv
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;configure-the-virtual-env&quot;&gt;Configure the virtual env&lt;/h2&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;c&quot;&gt;# Create a new env which uses Python 2.7&lt;/span&gt;
+virtualenv &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /usr/bin/python2.7 robot-env
+
+&lt;span class=&quot;c&quot;&gt;# Start using the env&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;source &lt;/span&gt;robot-env/bin/activate
+
+&lt;span class=&quot;c&quot;&gt;# Check the Python version&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;user@host ~]# python &lt;span class=&quot;nt&quot;&gt;-V&lt;/span&gt;
+Python 2.7.11
+
+&lt;span class=&quot;c&quot;&gt;# Install required pip packages&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# Add the following line to ~/.bashrc in order to have the virtualenv being active at user login (optional)&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;source&lt;/span&gt; ~/robot-env/bin/activate
+&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+</description>
+        <pubDate>Thu, 14 Jul 2016 21:55:10 +0000</pubDate>
+        <link>http://polster.github.io/2016/07/14/CentOS-Python-virtualenv.html</link>
+        <guid isPermaLink="true">http://polster.github.io/2016/07/14/CentOS-Python-virtualenv.html</guid>
+        
+        
+      </item>
+    
+  </channel>
+</rss>
