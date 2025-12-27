@@ -10,6 +10,7 @@ This repo contains the code base for polster's blog based on [Jekyll](https://je
 === Prerequisites
 
 * [Jekyll installation](https://jekyllrb.com/docs/installation/)
+* [Jekyll GH Actions](https://jekyllrb.com/docs/continuous-integration/github-actions/)
 
 == Get started
 
@@ -26,3 +27,11 @@ bundle install
 bundle exec jekyll build
 bundle exec jekyll serve
 ----
+
+== Hints
+
+=== GitHub Actions
+
+When publishing Jekyll sites using GH Pages as CDN, GH offers a built-in GH Actions workflow that can be configured.
+
+Go to GH Repo >Settings > Pages for more details.
