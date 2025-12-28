@@ -11,10 +11,17 @@ This repo contains the code base for polster's blog based on link:https://jekyll
 
 * link:https://jekyllrb.com/docs/installation/[Jekyll installation]
 * link:https://jekyllrb.com/docs/continuous-integration/github-actions/[Jekyll GH Actions]
+* link:https://pre-commit.com/[pre-commit] installed
 
 == Get started
 
 * Clone this repo
+* Install pre-commit hooks and verify:
+[source,shell]
+----
+pre-commit install
+pre-commit run --all-files
+----
 * If not done already, install jekyll and bundler gems:
 [source,shell]
 ----

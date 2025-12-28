@@ -1,7 +1,16 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
-    hooks:
-    -   id: check-yaml
-    -   id: end-of-file-fixer
-    -   id: trailing-whitespace
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+    - id: check-yaml
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+- repo: local
+  hooks:
+    - id: update-last-modified
+      name: Update Last Modified
+      description: Replace `last_modified_at` timestamp with current time
+      entry: .hooks/update_last_modified.sh
+      language: script
+      always_run: true
+      require_serial: true
