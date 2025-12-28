@@ -84,11 +84,11 @@ unset AWS_PROFILE
 helm create test-chart
 rm -rf test-chart/templates/*.*
 cat >test-chart/templates/configmap.yaml <<EOL
-apiVersion: v1  
-kind: ConfigMap  
-metadata:  
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: test-chart-configmap
-data:  
+data:
   myvalue: "Hello World"
 EOL
 helm package ./test-chart
